@@ -310,3 +310,5 @@ def main():
     else:
         init_setup = False
         check_setup(ft=init_setup)
+
+main()
