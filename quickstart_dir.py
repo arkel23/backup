@@ -120,7 +120,7 @@ def get_update_files_path_list(update_files_path):
     return UploadFilesNameList, UploadFilesPathList
 
 
-def main_og(is_update_file_function=False, update_drive_service_folder_name=None, update_drive_service_name=None, update_file_path=None):
+def main_og(is_update_file_function=False, update_drive_service_folder_name=None, update_drive_service_name=None, update_file_path=None, log_backup_auto=None, curr_time=None):
 
 
 
@@ -146,8 +146,10 @@ def main_og(is_update_file_function=False, update_drive_service_folder_name=None
             for UploadFileName in UploadFilesName:
                 search_file(service = service, update_drive_service_name = UploadFileName, is_delete_search_file = True)
             for i in range(len(UploadFilesPath)):
-                update_file(service=service, update_drive_service_name=UploadFilesName[i],
+                file_name, file_id = update_file(service=service, update_drive_service_name=UploadFilesName[i],
                             local_file_path=UploadFilesPath[i], update_drive_service_folder_id=get_folder_id)
+                log_msg = str('filename: ' + str(file_name) + '_ id: ' + file_id + '\n')
+                log_backup_auto.write(curr_time + '\t' + log_msg)
             print("=====Uploading Finish=====")
 
         else:  
@@ -161,7 +163,7 @@ def main_og(is_update_file_function=False, update_drive_service_folder_name=None
                         local_file_path=update_file_path + update_drive_service_name, update_drive_service_folder_id=get_folder_id)
             print("=====Uploading done =====")
 
-def add_folders(repo_path_tracker):
+def add_folders(path_tracker):
     #prompt user for adding paths
 
     while True:
@@ -170,18 +172,17 @@ def add_folders(repo_path_tracker):
             break
         else:
             if (os.path.exists(os.path.normpath(inp))):
-                repo_path_tracker.write(os.path.abspath(inp))
-                repo_path_tracker.write('\n')
+                path_tracker.write(os.path.abspath(inp))
+                path_tracker.write('\n')
             else:
                 print('Directory not valid. Please add a correct directory.')
 
-def compress_folder(curline, log_vc_auto, curr_time):
+def compress_folder(curline, log_backup_auto, curr_time):
     # compress the contents of each folder and return a compressed file
     curline = os.path.normpath(curline.strip('\n'))
     filename = os.path.join('compressed', os.path.basename(os.path.normpath(curline)))
     shutil.make_archive(filename, 'tar', curline)
-    return str(filename) #+'.tar'
-
+    
 
 def task_scheduler_win(path_exe, path_curr, time_run1, time_run2):
     # makes a task schedule script which runs on fixed times
@@ -226,11 +227,11 @@ def run_subprocess(cmd, curr_os='Windows', commit=False, curr_date=0, stdout=Fal
         return p.returncode
 
 def initialize(curr_time, curr_os):
-    log_vc_auto = open(os.path.join(FOLDER_AUX,'log_vc_auto.txt'), 'w')
-    log_vc_auto.write('curr_time\tlog_msg\n')
+    log_backup_auto = open(os.path.join(FOLDER_AUX,'log_backup_auto.txt'), 'w')
+    log_backup_auto.write('curr_time\tlog_msg\n')
 
-    repo_path_tracker = open(os.path.join(FOLDER_AUX,'repo_path_tracker.txt'), 'w')
-    repo_path_tracker.write('#local_repo_path\n')
+    path_tracker = open(os.path.join(FOLDER_AUX,'path_tracker.txt'), 'w')
+    path_tracker.write('#local_repo_path\n')
 
     time_run1 = input('Fixed time 1 to run script(number from 01-23): ')
     time_run2 = input('Fixed time 2 to run script(number from 01-23): ')
@@ -243,27 +244,30 @@ def initialize(curr_time, curr_os):
         path_curr = os.path.join(path_curr, script_name)
     except:
         log_msg = 'Error in either executable or current path. Closing prematurely.'
-        log_vc_auto.write(curr_time + '\t' + log_msg)
-        log_vc_auto.close()
-        repo_path_tracker.close()
+        log_backup_auto.write(curr_time + '\t' + log_msg)
+        log_backup_auto.close()
+        path_tracker.close()
 
     print('OS:', curr_os)
     if (curr_os == 'Windows'):
         rc = task_scheduler_win(path_exe, path_curr, time_run1, time_run2)
         log_msg = 'Return code for initializing task_scheduler_win: {}\n'.format(rc)
-        log_vc_auto.write(curr_time + '\t' + log_msg)
+        log_backup_auto.write(curr_time + '\t' + log_msg)
     elif (curr_os == 'Linux'):
         task_scheduler_linux(path_exe, path_curr, time_run1, time_run2)
         log_msg = 'No task scheduler for this platform. Manual operation only.\n'
-        log_vc_auto.write(curr_time + '\t' + log_msg)
+        log_backup_auto.write(curr_time + '\t' + log_msg)
     else:
         log_msg = 'No task scheduler for this platform. Manual operation only.\n'
-        log_vc_auto.write(curr_time + '\t' + log_msg)
+        log_backup_auto.write(curr_time + '\t' + log_msg)
 
-    add_folders(repo_path_tracker)
-    repo_path_tracker.close()
+    add_folders(path_tracker)
+    path_tracker.close()
+
+    log_msg = 'Initialized path_tracker.txt file\n'
+    log_backup_auto.write(curr_time + '\t' + log_msg)
         
-    return log_vc_auto
+    return log_backup_auto
 
 def check_setup(ft):
     print('First time setup: ', ft)
@@ -275,24 +279,25 @@ def check_setup(ft):
 
     #initializes log, path tracker and scheduler if first time, else runs updating
     if ft:
-        log_vc_auto = initialize(curr_time, curr_os) 
+        log_backup_auto = initialize(curr_time, curr_os) 
     else:
-        log_vc_auto = open(os.path.join(FOLDER_AUX,'log_vc_auto.txt'), 'a')
+        log_backup_auto = open(os.path.join(FOLDER_AUX,'log_backup_auto.txt'), 'a')
     
-    repo_path_tracker = open(os.path.join(FOLDER_AUX,'repo_path_tracker.txt'), 'r')
+    path_tracker = open(os.path.join(FOLDER_AUX,'path_tracker.txt'), 'r')
     
-    for curline in repo_path_tracker:
+    for curline in path_tracker:
         if not curline.startswith('#'):
-            curr_file = compress_folder(curline, log_vc_auto, curr_time)
+            compress_folder(curline, log_backup_auto, curr_time)
     
     main_og(is_update_file_function=bool(True), 
             update_drive_service_folder_name='BACKUPS',
             update_drive_service_name=None, 
-            update_file_path=os.path.join(os.getcwd(), 'compressed'))
+            update_file_path=os.path.join(os.getcwd(), 'compressed')
+            ,log_backup_auto=log_backup_auto, curr_time=curr_time)
 
 
-    repo_path_tracker.close()
-    log_vc_auto.close()
+    path_tracker.close()
+    log_backup_auto.close()
     
 def main():
     parser = argparse.ArgumentParser()
@@ -310,3 +315,5 @@ def main():
     else:
         init_setup = False
         check_setup(ft=init_setup)
+
+main()
